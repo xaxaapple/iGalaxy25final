@@ -1,0 +1,754 @@
+package com.fahadali.oneos.core.model
+
+import java.util.Locale
+
+/**
+ * The system an image is a build of. Guest data stays with its own system:
+ * a stage's ColorOS data is never kept for the Pixel image, nor Pixel data
+ * for a ColorOS image (StageStatus.beginModes, root's `begin keep`, 0.3.7).
+ * Infinity-X (0.4.27) is its own: its data has OPPO's and LineageOS's
+ * packages too, and its updater, com.infinity.updater, tells it apart.
+ */
+enum class SystemFamily { COLOROS, PIXEL, INFINITYX, HYPEROS, NOTHING, OXYGENOS, ORIGINOS }
+
+/**
+ * One OneOS OS image as friends download it (a gzip of the ext4 system
+ * image) and as root stages it (`$STAGE/system.raw`). Both hashes are pinned:
+ * the app checks the .gz, root checks the unpacked bytes (AA4, XP2).
+ */
+data class ImageRef(
+    val id: String,
+    /** "ColorOS 17, Find X9 Ultra build": the technical label (All checks, the findings). */
+    val label: String,
+    /** "Find X9 Ultra": tells the builds of one system apart in technical messages. */
+    val shortName: String,
+    /**
+     * The system's name as the user sees it, `{system}` in every plain text:
+     * "ColorOS 17", "Pixel 11 Fold". Brand names live only here, in the
+     * credits and in the legal line.
+     */
+    val name: String,
+    /** Tells two images of the same [name] apart on the cards: "Find N6 global build", "Find X9 Ultra build"; null = none needed. */
+    val variant: String?,
+    /** One line for its card: "Google's Pixel software." */
+    val blurb: String,
+    /** The shared link "Download" opens in the browser (no in-app download yet); null = none. */
+    val downloadUrl: String?,
+    /** Guest SDK; must equal the host's (a guest shares One UI's system services). */
+    val sdk: Int,
+    val buildId: String,
+    /** File name of the upload. */
+    val gzName: String,
+    val gzBytes: Long,
+    val gzSha256: String,
+    /** Unpacked size and SHA-256, as staged in `$STAGE/system.raw`. */
+    val rawBytes: Long,
+    val rawSha256: String,
+    /** Where a session has run with it; null = untested. */
+    val testedOn: String?,
+    /** CPU features the image may not start without (missing = WARN). */
+    val cpuRequired: List<String>,
+    /** CPU features only some OPPO app and media libraries use (missing = WARN that those features may crash). */
+    val cpuUsedByApps: List<String>,
+    /**
+     * Play services and the Play Store are in the image (the Pixel image; the
+     * ColorOS CN builds have none). The image's card says so; a launch may hide
+     * them only when [gmsHideable].
+     */
+    val googleServices: Boolean,
+    /**
+     * Sessions present the image's own GmsCore: its file sets stage
+     * `gmssystem_payload.img`, which guest_prepare.sh mounts and presents
+     * (docs/pixel-guest.md, "Google services"). Then Google services cannot be
+     * hidden for a launch: oneos_switch.sh refuses `ONEOS_GUEST_HIDE_GMS=1`
+     * next to that payload while `ONEOS_GUEST_GMS` is on, and session.env
+     * cannot turn that off. [PackageSetsTest] keeps this equal to the sets.
+     */
+    val presentsGms: Boolean = false,
+    /** Whose system it is: its guest data is kept only for an image of the same family. */
+    val family: SystemFamily,
+) {
+    /**
+     * The image's own download on the SourceForge mirror (0.4.59, project oneos-mirror, folder
+     * images/): one file, resumable, from a mirror near the user. [downloadUrl] (the Drive
+     * folder) stays the fallback.
+     */
+    val mirrorUrl: String get() = "${Images.MIRROR_FILES_URL}$gzName/download"
+
+    /**
+     * A launch may hide Google services (`ONEOS_GUEST_HIDE_GMS=1`, [SessionEnv],
+     * root's `IMAGES_GMS`): the image has them and its sessions do not present them.
+     */
+    val gmsHideable: Boolean get() = googleServices && !presentsGms
+
+    /** "Pixel 11 Fold (Android 17)", "ColorOS 17 · Find N6 global build (Android 17)": unique on a phone ([ImagesTest]). */
+    val displayName: String
+        get() = "$nameWithVariant (Android ${AndroidRelease.name(sdk)})"
+
+    /** "ColorOS 17 · Find N6 global build", or just [name] when there is no [variant]. */
+    val nameWithVariant: String get() = listOfNotNull(name, variant).joinToString(" · ")
+
+    /** The gzip ISIZE trailer: the unpacked size mod 2^32 (RFC 1952), an early check before the hash. */
+    val gzIsize: Long get() = rawBytes and 0xffff_ffffL
+
+    fun gzMatches(bytes: Long, sha256: String): Boolean =
+        bytes == gzBytes && sha256.lowercase(Locale.ROOT) == gzSha256
+
+    fun rawMatches(bytes: Long, sha256: String): Boolean =
+        bytes == rawBytes && sha256.lowercase(Locale.ROOT) == rawSha256
+}
+
+/**
+ * The built-in image table. Sizes and hashes verified on the server on
+ * 2026-10-22 (the Pixel 11 Fold image on 2026-10-24): the gunzip of each
+ * upload is byte-identical to the server image. 0.3.7 dropped the Find X9
+ * Ultra IN build (`coloros17-findx9u-in`); 0.4.11 takes it again.
+ */
+object Images {
+    /**
+     * The owner's shared folder the images are downloaded from (owner, 2026-10-24: no in-app download yet).
+     * 0.4.41: the owner's Google Drive ("safer and easier for users"); 0.4.42: every image is there
+     * (scripts/gofile-to-drive.py checked each against its pinned size and SHA-256).
+     */
+    const val SHARED_FOLDER_URL = "https://drive.google.com/drive/folders/1KuyNegquzVGxX3WfqyjQW5NErAYNEsUv"
+    /** The SourceForge mirror's image folder (0.4.59); [ImageRef.mirrorUrl] adds `<gzName>/download`. */
+    const val MIRROR_FILES_URL = "https://sourceforge.net/projects/oneos-mirror/files/images/"
+
+    /** The gofile folder every image up to 0.4.40 was uploaded to; a manual mirror now, not linked from the app. */
+    const val GOFILE_FOLDER_URL = "https://github.com/fahadalijaved/OneOS#where-the-images-come-from"
+
+    /** What fixed texts say when no image is known: they never name a system. */
+    const val OTHER_SYSTEM = "the other system"
+
+    const val ID_FIND_N6 = "coloros17-findn6"
+    const val ID_FIND_X9U_IN = "coloros17-findx9u-in"
+    const val ID_PIXEL_YOGI = "pixel11fold-yogi"
+    const val ID_PIXEL_KODIAK = "pixel11pro-kodiak"
+    const val ID_HYPEROS_LHASA = "hyperos-lhasa"
+    const val ID_PIXEL_KOMODO = "pixel9proxl-komodo"
+    const val ID_INFINITYX = "infinityx41-findx9u"
+    const val ID_NOTHING_METROID = "nothingos5-metroid"
+    const val ID_OXYGEN16 = "oxygenos16-cph2745"
+    const val ID_ORIGINOS7 = "originos7-pd2609ma"
+
+    /** Where root stages the unpacked image. */
+    const val STAGE_NAME = "system.raw"
+
+    /** The ext4 superblock magic 0xEF53, little endian at byte 1080 of the unpacked image. */
+    const val EXT4_MAGIC_OFFSET = 1080L
+    const val EXT4_MAGIC = 0xEF53
+
+    val FIND_N6 = ImageRef(
+        id = ID_FIND_N6,
+        label = "ColorOS 17, Find N6 global build",
+        shortName = "Find N6",
+        name = "ColorOS 17",
+        variant = "Find N6 global build",
+        blurb = "OPPO's global system from the Find N6, with Google Play, Live Alerts and the Dynamic Island.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        // 0.4.38: CPH2765_17.0.0.101(EX01) built without MysticGSI's debloat (UMS, Aod,
+        // Metis, LockAssistant kept), replacing the CN build. Same base as the Find
+        // X9 Ultra IN build (one vold, service.incremental and surfaceflinger).
+        gzName = "OneOS_ColorOS17_FindN6_Global.img.gz",
+        gzBytes = 7_213_271_568L,
+        gzSha256 = "b3061160ab3fdb37cd491e94c05e41238898320c1a5efb016debabc20991f3ee",
+        rawBytes = 14_829_686_784L,
+        rawSha256 = "eec6c10581657b17f3164d6f964c749b351c4a7ec07233840da5f6a0ce28a47c",
+        testedOn = "Galaxy Z Fold8 Ultra",
+        cpuRequired = emptyList(),
+        cpuUsedByApps = listOf("sve2", "sme"),
+        googleServices = true,
+        family = SystemFamily.COLOROS,
+    )
+
+    /**
+     * The global (India) build of the same phone, back in 0.4.11 (0.3.3-0.3.6
+     * took it; 0.3.7 dropped it when its server build was deleted for space):
+     * Google's mainline modules, Play services and the Play Store in
+     * my_product (owner: "IN build is just better"; friends run it). The
+     * upload of 2026-10-25 is the 0.3.3 file, byte for byte. 0.4.38: rebuilt
+     * from the same OTA (CPH2841IN) without MysticGSI's debloat, like the
+     * Find N6 build (UMS, Aod, Metis kept: the Dynamic Island, Live Alerts).
+     */
+    val FIND_X9U_IN = ImageRef(
+        id = ID_FIND_X9U_IN,
+        label = "ColorOS 17, Find X9 Ultra IN build",
+        shortName = "Find X9 Ultra IN",
+        name = "ColorOS 17",
+        variant = "global build",
+        blurb = "OPPO's global system from the Find X9 Ultra, with Google Play, Live Alerts and the Dynamic Island.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_ColorOS17_FindX9Ultra_IN_Full.img.gz",
+        gzBytes = 7_071_596_999L,
+        gzSha256 = "c2eadd7e4ca2a136a91aa28f806fd99498b829d45929ff3d6fb6865d66f89bab",
+        rawBytes = 14_669_168_640L,
+        rawSha256 = "92c7cd8485dd6ef80d1f5c734ea13a8744510c15b77a18471eb11078df84ddb6",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = listOf("sve2", "sme"),
+        googleServices = true,
+        family = SystemFamily.COLOROS,
+    )
+
+    /**
+     * Google's Pixel 11 Fold system (yogi, `google/yogi/yogi:17/CD1A.261005.003.B1`),
+     * built with MysticGSI (`scripts/build-gsi.sh --type pixel`,
+     * `out/oneos-pixel-yogi.img`; docs/pixel-guest.md). Runs 41-44 booted it on
+     * the Z Fold (F8U) from scripts/deploy-phone.sh; its set stages GmsCore.
+     */
+    val PIXEL_YOGI = ImageRef(
+        id = ID_PIXEL_YOGI,
+        label = "Pixel 11 Fold, yogi build",
+        shortName = "Pixel 11 Fold",
+        name = "Pixel 11 Fold",
+        variant = null,
+        blurb = "Google's system from the Pixel 11 Fold, with Google Play and Google's apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CD1A.261005.003.B1",
+        gzName = "OneOS_Pixel11Fold_Full_ZFold8.img.gz",
+        gzBytes = 3_288_346_862L,
+        gzSha256 = "8fbe950c47629c439af0807fc6bbb2afa29308c65c215849bcfa7a01f6b9290d",
+        rawBytes = 6_559_223_808L,
+        rawSha256 = "8b303c37916288545b3b4a317c368d89680b5c3ce09873dc764381ddd0e32830",
+        testedOn = "Z Fold (F8U)",
+        // Disassembly of the image's /system/bin/bootstrap/linker64 (2026-10-24,
+        // llvm-objdump; MysticGSI's build warning names MOPS and SME there, SVE/SVE2
+        // in /system/bin/init): unguarded SVE in the loader itself (__linker_init,
+        // ElfReader::Load, load_library, linker_memcpy) and SVE2 (MATCH in
+        // android::base::Split, EOR3, XAR), so the image is built for an SVE2 CPU.
+        // SME only in compiler-rt's SME state routines, each behind the CPU feature
+        // bit, and MOPS only in the memmove/memset ifunc variants: it booted on the
+        // F8U's SM8850, which has SVE, SVE2 and SME but no MOPS or SME2. No app or
+        // library scan beyond the loader.
+        cpuRequired = listOf("sve", "sve2"),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        presentsGms = true,
+        family = SystemFamily.PIXEL,
+    )
+
+    /**
+     * Google's Pixel 11 Pro system (kodiak, `CD1A.261005.003.B1`, the same build
+     * as the Pixel 11 Fold's), from 0.4.10 for the Galaxy S26 Ultra: the factory
+     * image, MysticGSI `--type pixel --no-debloat`, then Pixel Camera,
+     * PixelCameraServices, PixelDisplayService and grilservice removed, as for the
+     * Fold's full image. Its system code uses SVE in every process (RefBase's
+     * constructor), so only SM8850 phones take it. Untested.
+     */
+    val PIXEL_KODIAK = ImageRef(
+        id = ID_PIXEL_KODIAK,
+        label = "Pixel 11 Pro, kodiak build",
+        shortName = "Pixel 11 Pro",
+        name = "Pixel 11 Pro",
+        variant = null,
+        blurb = "Google's system from the Pixel 11 Pro, with Google Play and Google's apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CD1A.261005.003.B1",
+        gzName = "OneOS_Pixel11Pro_Full_S26U.img.gz",
+        gzBytes = 3_266_985_222L,
+        gzSha256 = "ee9b6005a086627220841618ea2edaa278c4e153460f7f947fc7fc9dea8d727c",
+        rawBytes = 6_529_871_872L,
+        rawSha256 = "ac661a520263fa73a2b9996f19763350457b1558863d1dc15326a365ce1784c6",
+        testedOn = null,
+        cpuRequired = listOf("sve", "sve2"),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        presentsGms = true,
+        family = SystemFamily.PIXEL,
+    )
+
+    /**
+     * Google's Pixel 9 Pro XL system (komodo, `google/komodo/komodo:17/CP3A.261005.005`),
+     * from 0.4.22 for the phones without SVE (Galaxy S25 Ultra, S25, S25+, S24
+     * Ultra): the factory image (owner's link), MysticGSI `--type pixel
+     * --no-debloat`, then Pixel Camera, PixelCameraServices, PixelDisplayService
+     * and grilservice removed, as for the Pixel 11 images. Disassembly
+     * (llvm-objdump, 2026-10-26) finds no SVE in libutils, libbinder, libhwui,
+     * libgui, libandroid_runtime, init, surfaceflinger, servicemanager,
+     * app_process64 or the boot image; the loader's only SVE (two cntd, which
+     * MysticGSI's build warning names) is in compiler-rt's SME state routines,
+     * behind the CPU feature bit. No app or library scan beyond those. Untested.
+     */
+    val PIXEL_KOMODO = ImageRef(
+        id = ID_PIXEL_KOMODO,
+        label = "Pixel 9 Pro XL, komodo build",
+        shortName = "Pixel 9 Pro XL",
+        name = "Pixel 9 Pro XL",
+        variant = null,
+        blurb = "Google's system from the Pixel 9 Pro XL, with Google Play and Google's apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP3A.261005.005",
+        gzName = "OneOS_Pixel9ProXL_Full_S25U.img.gz",
+        gzBytes = 2_925_465_896L,
+        gzSha256 = "b49a3f8e8825241083d564c6e49118e59049f5bc887443e19411909e6d770266",
+        rawBytes = 5_837_496_320L,
+        rawSha256 = "2ef2dfe164dc6cac44c574696da474e71a01d9a769eda9c1a265d018c1d45a5c",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        presentsGms = true,
+        family = SystemFamily.PIXEL,
+    )
+
+    /**
+     * Project Infinity-X 4.1 for the Find X9 Ultra (lighthouse,
+     * `infinity_lighthouse-user`, CP2A.260605.016), from 0.4.27 on every phone:
+     * a custom Android 17 built from source on LineageOS, with Google's apps
+     * (Play services in a product gmssystem APEX, as Pixel 17 keeps it, so its
+     * set stages the payload and sessions present it) and OPPO's framework jars of
+     * ColorOS 16 (oplus-fwk.jar, oplus-services.jar) for its camera port. The
+     * unofficial 2026-10-18 GAPPS build, made with MysticGSI (which takes it
+     * for ColorOS) and not changed. Its own vold and service.incremental.so
+     * (make-overlays.sh pins them for the guest vold as gvld); its duress-PIN
+     * wipe and OPPO's extended wipe never run in the guest
+     * (guest_no_wipe_secrets.py). Disassembly (llvm-objdump, 2026-10-29) finds
+     * no SVE or SME in libutils, libbinder, libhwui, libgui,
+     * libandroid_runtime, libc++, surfaceflinger, servicemanager,
+     * app_process64 or init; only the loader's compiler-rt routines (cntd,
+     * rdsvl), behind the CPU feature bit. OPPO's camera and gallery libraries
+     * were not scanned. Untested.
+     */
+    val INFINITYX = ImageRef(
+        id = ID_INFINITYX,
+        label = "Infinity-X 4.1, Find X9 Ultra build",
+        shortName = "Infinity-X",
+        name = "Infinity-X 4.1",
+        variant = null,
+        blurb = "A custom Android 17 system made for the Find X9 Ultra, with Google Play and Google's apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_InfinityX_FindX9Ultra.img.gz",
+        gzBytes = 3_321_412_981L,
+        gzSha256 = "608bb8602dcc0c85fc80127a2f9713a695508438b8c2d31eef3df25d23109bb5",
+        rawBytes = 6_677_426_176L,
+        rawSha256 = "899ce57a069959b6463263074f35e5aadadeb7bb46f0c0a756d2ba64168545e2",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = listOf("sve2", "sme"),
+        googleServices = true,
+        presentsGms = true,
+        family = SystemFamily.INFINITYX,
+    )
+
+    /**
+     * Xiaomi's HyperOS from the Xiaomi 18 Fold (lhasa, CN OTA OS4.0.26.0.XPNCNXM,
+     * `CP2A.260605.016`), MysticGSI's HyperOS patch set
+     * (`mysticgsi/out/oneos-hyperos-lhasa`). Local builds only up to 0.4.30;
+     * from 0.4.31 on every phone (owner, 2026-10-29: "Allow all users to try",
+     * made for the Z Fold8 Ultra and Z Fold8). Guarded like the other images,
+     * plus Xiaomi's own framework (docs/hyperos.md); no gvld pins yet, so Back
+     * to One UI restarts the phone. The CPU scan found MOPS only in the linker
+     * and libc ifunc variants, as in the Find N6 image. Untested.
+     */
+    val HYPEROS_LHASA = ImageRef(
+        id = ID_HYPEROS_LHASA,
+        label = "HyperOS, Xiaomi 18 Fold build",
+        shortName = "Xiaomi 18 Fold",
+        name = "HyperOS",
+        variant = null,
+        blurb = "Xiaomi's system from the Xiaomi 18 Fold. No Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_HyperOS_Xiaomi18Fold_ZFold8.img.gz",
+        gzBytes = 4_666_011_150L,
+        gzSha256 = "745e43c2d116c4277af06b65c5d8fbaefec11731dcc23f0c067631fce04554a3",
+        rawBytes = 7_749_939_200L,
+        rawSha256 = "269309b8869d4de41c5c852d230b4b7075b8ff733d9244f4fb868ec7109baeac",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = false,
+        family = SystemFamily.HYPEROS,
+    )
+
+    /**
+     * Nothing OS 5.0 (0.4.33), from the Nothing Archive dump of the A024
+     * "Metroid" (nothing_archive, Metroid_C5.0-260924-2115). Android 17 on a
+     * Qualcomm qssi_64 system image, like the ColorOS and Infinity-X builds.
+     *
+     * It keeps Google services (GmsCore and the Play Store are ordinary
+     * priv-apps in its product partition, not the APEX the Pixel images
+     * present), so a launch may hide them. No CPU requirement (0.4.36): the
+     * linker's and libc's SVE/SME instructions are the SME support routines,
+     * run only when the CPU reports SME (the Pixel 9 Pro XL, which runs on the
+     * S25 Ultra, has the same two), and of its ~1000 native files only
+     * libraries that choose their code at run time (libjxl, BoringSSL) hold
+     * SVE; the core libraries have none, unlike the Pixel 11 images'.
+     */
+    val NOTHING_METROID = ImageRef(
+        id = ID_NOTHING_METROID,
+        label = "Nothing OS 5.0, Metroid build",
+        shortName = "Nothing OS",
+        name = "Nothing OS 5.0",
+        variant = null,
+        blurb = "Nothing's system from the A024 (Metroid). With Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "AQ3A.250924.001",
+        gzName = "OneOS_NothingOS5_Metroid.img.gz",
+        gzBytes = 3_276_156_748L,
+        gzSha256 = "3026923ea476e998fd1ae828f441937106ffbe8fbaf613a316bce444998997bd",
+        rawBytes = 6_067_867_648L,
+        rawSha256 = "484f0e3a3dd2929f37b3201a57ceaf56aeca98b049a6a1f58558a2139f8a0b7b",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        family = SystemFamily.NOTHING,
+    )
+
+    /**
+     * OxygenOS 16 (0.4.67, experimental): OnePlus's Android 16 system from the CPH2745 (OP611FL1,
+     * 16.0.10.601(EX01), security patch 2026-09-01), for the Galaxies still on One UI 8.0/8.5 (SDK 36).
+     * Its own family: its data must never reach an Android 17 ColorOS session, nor ColorOS 17's this
+     * one. The core binaries hold no instruction past ARMv8.2 (only bti hints).
+     */
+    val OXYGEN16 = ImageRef(
+        id = ID_OXYGEN16,
+        label = "OxygenOS 16, OnePlus CPH2745 build",
+        shortName = "OxygenOS 16",
+        name = "OxygenOS 16",
+        variant = null,
+        blurb = "OnePlus's Android 16 system, for phones on One UI 8. Experimental. With Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 36,
+        buildId = "BP2A.250605.015",
+        gzName = "OneOS_OxygenOS16_CPH2745.img.gz",
+        gzBytes = 6_169_117_525L,
+        gzSha256 = "21e9b1fe37adb0ce4820610f017cdcce6373457c435aa242262b2e4ed214c5f0",
+        rawBytes = 12_273_344_512L,
+        rawSha256 = "dafbb026f97692b7d59b8f4ae2f46773e88e0d5bf0e1fee46b3636ff56b06e90",
+        testedOn = null,
+        cpuRequired = emptyList(),
+        cpuUsedByApps = emptyList(),
+        googleServices = true,
+        family = SystemFamily.OXYGENOS,
+    )
+
+    /**
+     * OriginOS 7 (0.4.73, experimental): vivo's Android 17 system from the CN PD2609MA build
+     * (CP2A.260605.016, 260919185055, security patch 2026-09-01; ro.vivo.os.build.display.id
+     * "OriginOS 7"), for the Snapdragon S25/S26 series and the Z Fold7, Fold8 and Fold8 Ultra;
+     * 0.4.82 also the Snapdragon S24 and S23 phones, 0.4.83 the Exynos S24 and S24+ (untested there, Profiles.kt). Play
+     * services from the image's own gmssystem payload, the Play Store from One UI's copy (a CN
+     * build has only the 2022 updater stub). Its own family: vivo's data is not ColorOS's. The
+     * core binaries hold no SVE; libjxl, MediaTek's TFLite and some app libraries may use it
+     * (docs/originos.md, the host check). Tested on the Z Fold8 Ultra (runs 13-24).
+     */
+    val ORIGINOS7 = ImageRef(
+        id = ID_ORIGINOS7,
+        label = "OriginOS 7, vivo PD2609MA build",
+        shortName = "OriginOS 7",
+        name = "OriginOS 7",
+        variant = null,
+        blurb = "vivo's Android 17 system, for the S23 to S26 series and the Z Fold7 and Fold8 phones. Experimental. With Google apps.",
+        downloadUrl = SHARED_FOLDER_URL,
+        sdk = 37,
+        buildId = "CP2A.260605.016",
+        gzName = "OneOS_OriginOS7_PD2609MA.img.gz",
+        gzBytes = 8_548_707_904L,
+        gzSha256 = "f55cf849b1c0510d633595bc7d74946c650da628d110a370684e390c8fdb61ad",
+        rawBytes = 15_998_222_336L,
+        rawSha256 = "9eab3c6de0938a8f31a96be0bfdc9d2c511198aa40704e0206bd633becfdd8ee",
+        testedOn = "Galaxy Z Fold8 Ultra",
+        cpuRequired = emptyList(),
+        cpuUsedByApps = listOf("sve", "sve2"),
+        googleServices = true,
+        presentsGms = true,
+        family = SystemFamily.ORIGINOS,
+    )
+
+    val ALL: List<ImageRef> = listOf(FIND_N6, FIND_X9U_IN, PIXEL_YOGI, PIXEL_KODIAK, PIXEL_KOMODO, INFINITYX, HYPEROS_LHASA, NOTHING_METROID, OXYGEN16, ORIGINOS7)
+
+    fun byId(id: String, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.id == id }
+
+    /**
+     * Images earlier builds took and this one no longer sets up, for their
+     * names only (an old stage's marker, a copy set aside, the last session, a
+     * remembered download). None since 0.4.11: the Find X9 Ultra IN build,
+     * dropped in 0.3.7, is back in [ALL].
+     */
+    val RETIRED: List<RetiredImage> = listOf(
+        // 0.4.51: the debloated Find X9 Ultra build (0.4.11 to 0.4.50); the full IN build takes its phones.
+        RetiredImage("coloros17-findx9u", "Find X9 Ultra", "OneOS_ColorOS17_FindX9Ultra_S26U.img.gz", 5_290_346_735L, 10_385_141_760L),
+    )
+
+    /** "Find N6", a retired image's name, or the id itself when no build knew it. */
+    fun shortName(id: String, images: List<ImageRef> = ALL, retired: List<RetiredImage> = RETIRED): String =
+        byId(id, images)?.shortName ?: retired.firstOrNull { it.id == id }?.shortName ?: id
+
+    /** The image whose .gz has exactly this size (`OpenableColumns.SIZE`). */
+    fun byGzSize(bytes: Long, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.gzBytes == bytes }
+
+    fun byRawSize(bytes: Long, images: List<ImageRef> = ALL): ImageRef? = images.firstOrNull { it.rawBytes == bytes }
+
+    /**
+     * `{system}` in a plain text: [image]'s name ("ColorOS 17", "Pixel 11
+     * Fold"), with its variant when [profile] takes another image of the same
+     * name, so the two are never confused ("ColorOS 17 · Find N6 global build"); "the
+     * other system" when no image is known.
+     */
+    fun systemName(image: ImageRef?, profile: PhoneProfile? = null, images: List<ImageRef> = ALL): String {
+        if (image == null) return OTHER_SYSTEM
+        val twin = profile?.images(images).orEmpty().any { it.id != image.id && it.name == image.name }
+        return if (twin) image.nameWithVariant else image.name
+    }
+}
+
+/** An image an earlier build took ([Images.RETIRED]): its name and sizes, so it is told apart from a file that is no OneOS image. */
+data class RetiredImage(val id: String, val shortName: String, val gzName: String, val gzBytes: Long, val rawBytes: Long)
+
+/** What the app knows about the file the user picked (ImageActivity, AA1). */
+data class ImageFileCheck(
+    /** `OpenableColumns.DISPLAY_NAME`, for messages only. */
+    val displayName: String?,
+    /** `OpenableColumns.SIZE`; null when the provider does not say. */
+    val bytes: Long?,
+    /** SHA-256 of the whole stream; null until "Check file" has run. */
+    val sha256: String? = null,
+    /** Bytes read while hashing; null until hashed. */
+    val hashedBytes: Long? = null,
+)
+
+/** The stage's `system.raw` as root's read-only check found it ("Use the image already on this phone"). */
+data class StagedRaw(
+    /** Its size now; null = there is none. */
+    val bytes: Long?,
+    /**
+     * The SHA-256 root checked when it staged the file (`system.raw.id`), only
+     * while the file is unchanged since (same size and dev:inode:size:mtime);
+     * null = not known.
+     */
+    val verifiedSha256: String? = null,
+)
+
+enum class ImageState {
+    /** Size and SHA-256 are an image this phone accepts. */
+    VERIFIED,
+    /** Size matches an image this phone accepts; not hashed yet. */
+    NOT_CHECKED,
+    /** A OneOS image, but not one this phone accepts. */
+    WRONG_FOR_PHONE,
+    /** Size or SHA-256 differ: damaged or incomplete download. */
+    DAMAGED,
+    /** The unpacked image; the app stages only the .img.gz. */
+    UNCOMPRESSED,
+    /** Not a OneOS image, or the size is unknown. */
+    UNKNOWN,
+}
+
+data class ImageIdentity(val state: ImageState, val image: ImageRef?, val finding: Finding)
+
+/**
+ * Identifies the picked file against the images the phone's profile accepts
+ * ([PhoneProfile.choices]) and says which one it is: by size first (cheap,
+ * before any hashing), then by SHA-256 after "Check file". Only
+ * [ImageState.VERIFIED] is OK; everything else is a BLOCK, and an image the
+ * phone does not accept names the ones it does. [profile] null skips the
+ * "right image for this phone" check (the profile gate refuses that phone anyway).
+ */
+object ImageIdentifier {
+    const val ID = "gate-image"
+
+    /** [Finding.reason]s of the picked .gz ([identify]). */
+    const val R_SIZE_UNKNOWN = "size-unknown"
+    const val R_UNCOMPRESSED = "uncompressed"
+    const val R_NOT_OURS = "not-ours"
+    const val R_WRONG_PHONE = "wrong-phone"
+    const val R_NOT_CHECKED = "not-checked"
+    const val R_DAMAGED = "damaged"
+
+    /** The .gz of an image an earlier build took ([Images.RETIRED]). */
+    const val R_RETIRED = "retired"
+
+    /** [Finding.reason]s of the stage's system.raw ([identifyStaged]). */
+    const val R_NO_RAW = "no-raw"
+    const val R_RAW_NOT_OURS = "raw-not-ours"
+    const val R_RAW_WRONG_PHONE = "raw-wrong-phone"
+    const val R_RAW_DAMAGED = "raw-damaged"
+
+    /** "Z Fold (F8U) takes the Find N6 image (….gz) or the Pixel 11 Fold image (….gz)". */
+    fun accepts(profile: PhoneProfile?, images: List<ImageRef> = Images.ALL): String {
+        val want = profile?.images(images).orEmpty()
+        return if (profile != null && want.isNotEmpty()) {
+            "${profile.label} takes " + want.joinToString(" or ") { "the ${it.shortName} image (${it.gzName})" }
+        } else {
+            "the OneOS images are ${images.joinToString(" and ") { it.gzName }}"
+        }
+    }
+
+    fun identify(
+        check: ImageFileCheck,
+        profile: PhoneProfile?,
+        images: List<ImageRef> = Images.ALL,
+        retiredImages: List<RetiredImage> = Images.RETIRED,
+    ): ImageIdentity {
+        val name = check.displayName?.takeIf { it.isNotBlank() }?.let { "'${it.take(120)}'" } ?: "This file"
+        val size = check.hashedBytes ?: check.bytes
+        val wantText = accepts(profile, images)
+
+        if (size == null) {
+            return ImageIdentity(
+                ImageState.UNKNOWN, null,
+                block("Image size unknown", "$name has no size. Tap Check file to read it; $wantText.", R_SIZE_UNKNOWN),
+            )
+        }
+        val bySize = images.filter { it.gzBytes == size }
+        if (bySize.isEmpty()) {
+            val raw = Images.byRawSize(size, images)
+            val retired = retiredImages.firstOrNull { it.gzBytes == size }
+            return if (raw == null && retired != null) {
+                ImageIdentity(
+                    ImageState.UNKNOWN, null,
+                    block(
+                        "Image no longer supported",
+                        "$name has the size of the ${retired.shortName} image (${retired.gzName}), which this version of OneOS no longer sets up: $wantText.",
+                        R_RETIRED,
+                    ),
+                )
+            } else if (raw != null) {
+                val pick = if (profile == null || profile.choice(raw.id) != null) "pick ${raw.gzName}" else wantText
+                ImageIdentity(
+                    ImageState.UNCOMPRESSED, raw,
+                    block("Pick the .img.gz file", "$name is the unpacked ${raw.shortName} image. OneOS unpacks the image itself: $pick.", R_UNCOMPRESSED),
+                )
+            } else {
+                ImageIdentity(
+                    ImageState.UNKNOWN, null,
+                    block("Not a OneOS image", "$name (${Units.bytes(size)}) is not a OneOS image: $wantText.", R_NOT_OURS),
+                )
+            }
+        }
+        val accepted = if (profile == null) bySize else bySize.filter { profile.choice(it.id) != null }
+        val sha = check.sha256?.lowercase(Locale.ROOT)
+        // Hashed: the image whose size and SHA-256 both match, if any.
+        val exact = sha?.let { h -> bySize.firstOrNull { it.gzMatches(size, h) } }
+        if (accepted.isEmpty() || (exact != null && exact !in accepted)) {
+            val other = exact ?: bySize.first()
+            return ImageIdentity(
+                ImageState.WRONG_FOR_PHONE, other,
+                block("Wrong image for this phone", "This is the ${other.shortName} image; $wantText.", R_WRONG_PHONE),
+            )
+        }
+        val image = exact ?: accepted.first()
+        if (sha == null) {
+            return ImageIdentity(
+                ImageState.NOT_CHECKED, image,
+                block("Check the file first", "$name has the size of the ${image.shortName} image. Tap Check file to verify it.", R_NOT_CHECKED),
+            )
+        }
+        if (exact == null || (check.bytes != null && check.bytes != size)) {
+            return ImageIdentity(
+                ImageState.DAMAGED, image,
+                block(
+                    "The file is damaged or incomplete",
+                    "$name does not match the ${image.shortName} image (SHA-256 ${sha.take(12)}..., expected " +
+                        "${image.gzSha256.take(12)}...). Download it again.",
+                    R_DAMAGED,
+                ),
+            )
+        }
+        return ImageIdentity(
+            ImageState.VERIFIED, image,
+            Finding(
+                ID, Level.OK, "${image.shortName} image verified",
+                "${image.label}: ${image.gzName}, ${Units.bytes(image.gzBytes)}, SHA-256 matches.",
+            ),
+        )
+    }
+
+    /**
+     * "Use the image already on this phone": the stage's system.raw against the
+     * images [profile] accepts, by size and, while root still vouches for the
+     * file (system.raw.id), by SHA-256. Its size is enough to prepare (OK,
+     * [ImageState.NOT_CHECKED]): root hashes it in keep-raw before anything
+     * uses it, and moves it to the attic when it differs.
+     */
+    fun identifyStaged(
+        raw: StagedRaw,
+        profile: PhoneProfile?,
+        images: List<ImageRef> = Images.ALL,
+        retiredImages: List<RetiredImage> = Images.RETIRED,
+    ): ImageIdentity {
+        val wantText = accepts(profile, images)
+        val size = raw.bytes ?: return ImageIdentity(
+            ImageState.UNKNOWN, null,
+            block("No image on this phone", "The stage has no system.raw. Pick the downloaded file instead: $wantText.", R_NO_RAW),
+        )
+        val bySize = images.filter { it.rawBytes == size }
+        if (bySize.isEmpty()) {
+            val retired = retiredImages.firstOrNull { it.rawBytes == size }
+            return ImageIdentity(
+                ImageState.UNKNOWN, null,
+                if (retired != null) {
+                    block(
+                        "Image no longer supported",
+                        "system.raw in the stage has the size of the ${retired.shortName} image, which this version of OneOS no longer sets up. " +
+                            "Pick the downloaded file instead: $wantText.",
+                        R_RAW_NOT_OURS,
+                    )
+                } else {
+                    block(
+                        "Not a OneOS image on this phone",
+                        "system.raw in the stage (${Units.bytes(size)}) is not a OneOS image. Pick the downloaded file instead: $wantText.",
+                        R_RAW_NOT_OURS,
+                    )
+                },
+            )
+        }
+        val accepted = if (profile == null) bySize else bySize.filter { profile.choice(it.id) != null }
+        val sha = raw.verifiedSha256?.lowercase(Locale.ROOT)
+        val exact = sha?.let { h -> bySize.firstOrNull { it.rawMatches(size, h) } }
+        if (accepted.isEmpty() || (exact != null && exact !in accepted)) {
+            val other = exact ?: bySize.first()
+            return ImageIdentity(
+                ImageState.WRONG_FOR_PHONE, other,
+                block(
+                    "Wrong image on this phone",
+                    "system.raw in the stage is the ${other.shortName} image; $wantText. Pick the downloaded file instead.",
+                    R_RAW_WRONG_PHONE,
+                ),
+            )
+        }
+        val image = exact ?: accepted.first()
+        return when {
+            sha != null && exact == null -> ImageIdentity(
+                ImageState.DAMAGED, image,
+                block(
+                    "Not the ${image.shortName} image",
+                    "system.raw has the ${image.shortName} image's size, but root staged it with another SHA-256 " +
+                        "(${sha.take(12)}...). Pick ${image.gzName} instead.",
+                    R_RAW_DAMAGED,
+                ),
+            )
+            exact != null -> ImageIdentity(
+                ImageState.VERIFIED, image,
+                Finding(
+                    ID, Level.OK, "${image.shortName} image already on this phone",
+                    "system.raw is the ${image.shortName} image (${Units.bytes(size)}), checked by root when it was staged. " +
+                        "Prepare has root check its SHA-256 again (about a minute).",
+                ),
+            )
+            else -> ImageIdentity(
+                ImageState.NOT_CHECKED, image,
+                Finding(
+                    ID, Level.OK, "${image.shortName} image already on this phone",
+                    "system.raw has the size of the ${image.shortName} image (${Units.bytes(size)}). Prepare has root " +
+                        "check its SHA-256 (about a minute); if it differs, it is moved to the attic and you pick the .gz.",
+                ),
+            )
+        }
+    }
+
+    private fun block(title: String, detail: String, reason: String) = Finding(ID, Level.BLOCK, title, detail, reason)
+}

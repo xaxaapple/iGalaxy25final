@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <PreferenceCategory android:title="@string/about_cat_app">
+        <Preference
+            android:key="version"
+            android:selectable="false"
+            android:title="@string/about_version_title" />
+        <Preference
+            android:selectable="false"
+            android:summary="@string/about_what_summary"
+            android:title="@string/about_what_title" />
+        <Preference
+            android:selectable="false"
+            android:summary="@string/about_version_scope_summary"
+            android:title="@string/about_version_scope_title" />
+        <Preference
+            android:selectable="false"
+            android:summary="@string/about_tested_summary"
+            android:title="@string/about_tested_title" />
+        <Preference
+            android:selectable="false"
+            android:summary="@string/about_safety_summary"
+            android:title="@string/about_safety_title" />
+        <Preference
+            android:key="before_you_start"
+            android:summary="@string/before_link_summary"
+            android:title="@string/before_title" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/about_cat_credits">
+        <Preference
+            android:selectable="false"
+            android:summary="@string/about_credit_oneos_summary"
+            android:title="@string/about_credit_oneos_title" />
+        <!-- OneLineage is credited with its GitHub link only; tap opens the browser. -->
+        <Preference
+            android:key="credit_onelineage"
+            android:summary="@string/about_credit_onelineage_url"
+            android:title="@string/about_credit_onelineage_title" />
+        <!-- Pull request #1; tap opens it. -->
+        <Preference
+            android:key="credit_fold8"
+            android:summary="@string/about_credit_fold8_summary"
+            android:title="@string/about_credit_fold8_title" />
+        <!-- The Infinity-X system (0.4.27); tap opens its sources. -->
+        <Preference
+            android:key="credit_infinityx"
+            android:summary="@string/about_credit_infinityx_summary"
+            android:title="@string/about_credit_infinityx_title" />
+        <Preference
+            android:selectable="false"
+            android:summary="@string/about_credit_oneui_summary"
+            android:title="@string/about_credit_oneui_title" />
+    </PreferenceCategory>
+
+    <PreferenceCategory android:title="@string/about_cat_legal">
+        <Preference
+            android:selectable="false"
+            android:summary="@string/about_legal_summary"
+            android:title="@string/about_legal_title" />
+    </PreferenceCategory>
+
+</PreferenceScreen>

@@ -1,0 +1,340 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="images/banner-dark-2x.png">
+    <source media="(prefers-color-scheme: light)" srcset="images/banner-light-2x.png">
+    <img src="images/banner-light-2x.png" width="100%" alt="OneOS: another Android, next to One UI. Nothing flashed. Switch from an app, come back the same way. A One UI phone and a OneOS foldable, with arrows going both ways.">
+  </picture>
+</p>
+
+<p align="center">
+  <img alt="Status: experimental" src="https://img.shields.io/badge/status-experimental-5B3FCB?style=flat-square&labelColor=2B3445">
+  <img alt="Android 17" src="https://img.shields.io/badge/Android-17-1C5FD6?style=flat-square&labelColor=2B3445">
+  <img alt="One UI 9" src="https://img.shields.io/badge/One%20UI-9-1C5FD6?style=flat-square&labelColor=2B3445">
+  <img alt="Root: KernelSU" src="https://img.shields.io/badge/root-KernelSU-1C5FD6?style=flat-square&labelColor=2B3445">
+</p>
+
+OneOS runs a second Android system next to One UI on a rooted Samsung Galaxy
+and switches between the two without flashing anything. One UI stays
+installed; the other system lives in a folder on the phone and starts on One
+UI's kernel as a container with its own zygote and system_server. You switch
+from the OneOS app and come back with **Back to One UI** (the OneOS app inside
+the other system) or by holding **Volume Up + Volume Down** for 3 seconds.
+
+OneOS started from [OneLineage](https://github.com/WeWaffles/OneLineage) by
+WeWaffles, and builds its guest images with
+[MysticGSI](https://github.com/MysticGSI/mysticgsi). See [Credits](#credits).
+
+> [!WARNING]
+> **Experimental. It can break your phone's data. Do not try this unless you
+> know what you are doing.** OneOS replaces core parts of a running system as
+> root. During development a guest system reached One UI's data and deleted
+> app data and photos, and a guest once took over the phone's lock-screen
+> hardware slot so that One UI could not unlock until a factory reset. Both
+> are guarded against now, but untested phones and images can fail in new
+> ways. **You must back up your accounts and data first, and remove the screen
+> lock (PIN, pattern, password, fingerprint, face) before switching.** Only use
+> a phone you can afford to reset. Nothing here is supported by Samsung,
+> Google or OPPO.
+
+## Status
+
+App version 0.4.85. Galaxy Z Fold, S, Z Flip, A, F and M phones with Snapdragon,
+Exynos or MediaTek chips, on One UI 9 (and, for OxygenOS 16 only, on One UI 8);
+root is required (tested with KernelSU; Magisk and APatch are
+detected but untested).
+
+**Is your phone on the list?** [docs/devices.md](docs/devices.md) names every
+phone the app accepts, and for each system on it what testers reported in the
+last days. It is written from the app's own phone table and the reports, so it
+is the list to trust; the paragraphs below tell how the list grew.
+
+The app now uses an adaptive SESL9 card picker, a new OneOS icon, dedicated
+setup/update and pre-boot checks, and optional verbose entry/return screens.
+See the [UI gallery](docs/app/redesign-gallery.md) for Fold8 cover and inner
+screen screenshots, and [boot handoff notes](docs/boot-status.md) for the
+display lifecycle and release packaging requirements.
+
+Where each system has reached the home screen, on our phones and in testers'
+reports (One UI 9; OxygenOS 16 on One UI 8). What they reported working, item
+by item and per app version, is in
+[docs/compatibility.md](docs/compatibility.md).
+
+| Guest system | Home screen reached on |
+| --- | --- |
+| ColorOS 17, Find N6 build | Galaxy Z Fold8 Ultra, Z Fold8, Z Fold7, Z Fold6, Z Fold5 |
+| ColorOS 17, Find X9 Ultra IN (global) build | Galaxy S26 Ultra, S26+, S26 (both chips each), S25 Ultra, S25+, S25, S25 Edge, S24 Ultra, S24 (both chips), S23 Ultra, S23+, S23, Z Flip7, Z Flip6, Z Flip5, A57, A56, A55 5G, A54 5G, A36, A35 5G, A34 5G, A27, A26, A17, A17 5G, A16 4G, A16 5G, A15, A07 |
+| Pixel 11 Fold | Galaxy Z Fold8 Ultra, Z Fold8 |
+| Pixel 11 Pro | Galaxy S26 Ultra, S26+ (both chips) |
+| Pixel 9 Pro XL | Galaxy S25 Ultra, S25, S24 Ultra, S24, S24 FE, S23 Ultra, S23+, S23, Z Flip5, A57, A56 |
+| Infinity-X 4.1 | Galaxy S26 Ultra, S25 Ultra, S25, S24 Ultra, S23 Ultra, S23, Z Fold6, Z Flip5, A57, A56, A54 5G, A36, A27, A26, A17, A17 5G, A16 4G, A16 5G, A07 |
+| HyperOS (Xiaomi 18 Fold) | Galaxy Z Fold8, Z Fold7, S26 Ultra, S26, S25 Ultra, S25+, S25, S25 Edge, S24 Ultra, S23 Ultra, S23, Z Flip5, A57, A56, A36, A27, A17, A17 5G, A16 4G, A16 5G, A07 |
+| Nothing OS 5.0 | Galaxy Z Fold8 Ultra, Z Fold7, Z Fold6, S26 Ultra, S26, S25 Ultra, S25+, S25, S25 Edge, S24 Ultra |
+| OriginOS 7 | Galaxy Z Fold8 Ultra, Z Fold7, S26 Ultra, S25+, S25 |
+| OxygenOS 16 (Android 16, for phones on One UI 8) | Galaxy S22 Ultra (both chips), S22+, S22 (Snapdragon), S23 FE, A34 5G, A24, A15, M55s, A16 5G (SM-S166V) |
+
+Started is not the same as finished: on Infinity-X the reports so far say calls
+do not work and SMS only sometimes, which is what the IMS switch in Advanced is
+for (0.4.31, Infinity-X and HyperOS). On the Z Flip5 the camera was broken in
+both systems; 0.4.31 carries the fix.
+
+Untested profiles, where the app asks you to tick that you know before
+switching: Galaxy Z Fold8 (SM-F971) and Z Fold7 (SM-F966), Galaxy S26+ (SM-S947),
+S26 (SM-S942, SC-51G), S25+ (SM-S936) and S24 Ultra (SM-S928) with ColorOS; the
+Pixel 11 Fold image on the Z Fold8, the Pixel 11 Pro image on the Galaxy S26
+Ultra, S26+ and S26, and the Pixel 9 Pro XL image on the Galaxy S25 Ultra, S25,
+S25+ and S24 Ultra (the Pixel 11 images need a newer CPU), and from 0.4.30 also on
+the Galaxy S23, S23+, Z Flip5, Z Flip7, A57 and (0.4.31) A56; and on every Galaxy S phone above, the Find X9 Ultra IN (global) build
+of ColorOS 17, with Google Play and the Play Store; and on every phone above,
+Infinity-X 4.1 (0.4.27), a custom Android 17 made for the Find X9 Ultra, with
+Google Play and Google's apps; and from 0.4.31, on every phone above, HyperOS,
+Xiaomi's system from the Xiaomi 18 Fold, made for the Galaxy Z Fold8 Ultra and Z
+Fold8 (its cover screen layout runs on the cover; other phones may try it too,
+where it runs as a phone). Galaxy S23 (SM-S911),
+S23+ (SM-S916), from 0.4.29 the Galaxy Z Flip5 (SM-F731, used as a phone on
+the main screen) and from 0.4.40 the S23 Ultra (SM-S918) are accepted for testing only:
+their vendor software is too old and the system will most likely not start
+(One UI comes back by itself; please share the session logs).
+
+Exynos, first runs: the Galaxy S26+ with Exynos (SM-S947B, m2s) with both
+Find X9 Ultra builds and the Pixel 11 Pro image, the Galaxy Z Flip7
+(SM-F766, Exynos 2500) with both Find X9 Ultra builds, used as a phone on the
+main screen (no cover screen layout yet), from 0.4.29 the Galaxy A57
+(SM-A576, a57x) with both Find X9 Ultra builds, the first A-series phone, and
+from 0.4.31 its smaller sibling the Galaxy A56 (SM-A566, a56x), with the same
+images, and from 0.4.40 the Galaxy S24 with Exynos 2400 (SM-S921, e1s) with the S23s'
+images. The Galaxy Z Flip6 (SM-F741, Snapdragon 8 Gen 3 like the S24 Ultra) takes
+the S24 Ultra's images but HyperOS from 0.4.40, untested, used as a phone on the main screen. The
+S26+ and Z Flip7 test sessions fixed the first Exynos problems (the phone
+restarting after the switch); every system on Exynos is still untested. Each
+of them also offers Infinity-X.
+
+Newer additions, each untested until a report says otherwise
+([docs/devices.md](docs/devices.md) has today's state): from 0.4.67, OxygenOS 16
+(Android 16) for phones still on One UI 8.0 or 8.5: the Galaxy S22 series, the
+S23 FE and A, F and M phones; from 0.4.73, OriginOS 7 (vivo, Android 17) on the
+Snapdragon Galaxy S26 and S25 phones and the Z Fold8 Ultra, Z Fold8 and Z Fold7,
+and from 0.4.82 on the Snapdragon S24 and S23 phones; and in 0.4.83 the Galaxy
+S24+ with Exynos 2400 (SM-S926B, e2s), which, like the Exynos S24, takes the
+S24 Ultra's six systems: these two are the first Exynos phones to offer
+OriginOS 7, which has not run on an Exynos phone yet.
+
+Release notes are in [changelog.md](changelog.md).
+
+Known open issues for each system are in `docs/pixel-guest.md` and
+`docs/coloros-on-fold.md`.
+
+Everything else (other Exynos phones, other models, other images, other
+Android versions) is refused by the app's compatibility checks.
+
+## iOS 27 (OneiOS), in this fork
+
+This fork (`akshaynexus/OneOS`, branch `oneios`) adds one more kind of system, for the **Galaxy S24 Ultra
+(SM-S928) only** and behind an experimental tick: **iOS 27**, run by
+[OneiOS](https://github.com/akshaynexus/OneiOS)'s xnuhost, a source-built XNU that runs as a process on One UI's
+kernel. Its runtime comes from OneiOS's releases; its image set is built by you from Apple's firmware and
+imported from a file, never downloaded and never in git. It has its own stage and its own session scripts, and
+it has not run on a phone yet. Everything about it: [docs/oneios.md](docs/oneios.md).
+
+## Your phone is not listed?
+
+Run **OneOS Probe** on it. It is a separate read-only app: it changes nothing,
+and it strips the IMEI, phone numbers and Wi-Fi names from its report (it
+needs root to read the system). Tap **Run tests**, then **Send to the OneOS
+team** (from 0.4.29), or **Share** and post the zip with your phone model in
+**Phone reports** in the [OneOS Telegram group](https://t.me/TheoneOS). New releases are announced
+there too. Probe is in the same download folder as the app (see the latest
+release).
+
+## Getting started
+
+**Before anything else (do not skip these):**
+
+1. **Use a tested phone.** The systems above have only been tested on the
+   phones listed next to them. On any other phone the app warns you, and things
+   may not work.
+2. **Back up your accounts and data.** Samsung Cloud, Google and Smart Switch,
+   plus photos and anything else you can't lose. OneOS guards One UI's data,
+   but it is experimental.
+3. **Remove your screen lock.** Settings › Lock screen › Screen lock type ›
+   **None** or **Swipe**: no PIN, pattern, password, fingerprint or face. If
+   something goes wrong and the phone boot-loops, a locked phone may need a
+   factory reset to recover. OneOS will not switch while a lock is set.
+   From 0.4.32 Advanced has a switch, under **Risky**, to do it anyway: your
+   One UI apps and photos are encrypted behind that lock, so a session that
+   leaves the phone unable to accept it is a factory reset, not an
+   inconvenience. Leave it off unless you have a reason and accept that.
+4. **Root, battery and heat.** The phone must be rooted (tested with KernelSU),
+   charged to at least 30 % and not hot (under 42 °C).
+
+**Then:**
+
+5. Install the OneOS app made for your phone's series and allow it in your
+   root manager. From 0.4.25 there are three downloads, each about half the
+   size of the old single app:
+   `OneOS-<version>-fold.apk` (Galaxy Z Fold8 Ultra, Z Fold8, Z Fold7, Z Fold6, Z Fold5),
+   `OneOS-<version>-s26.apk` (Galaxy S26 Ultra, S26+, S26, Z Flip8) and
+   `OneOS-<version>-s25.apk` (every other phone: Galaxy S25 Ultra, S25+, S25, S25 Edge, S25 FE,
+   the S24, S23 and S22 series, Z Flip7, Z Flip6, Z Flip5, and the A, F and M phones). Installed the wrong one? OneOS tells you which file your
+   phone needs.
+6. In OneOS open **Systems**, tap **Download** on the system made for your
+   phone and download it, on Wi-Fi (3.3 to 5.9 GB).
+7. Back in OneOS tap **I have the file**, pick the download, then **Set up**.
+   Setup takes about 15 minutes: keep OneOS open and the phone plugged in. One
+   UI keeps working meanwhile.
+8. Tap **Switch**. To come back, tap **Back to One UI** in the other system
+   (usually no restart), or hold **Volume Up + Volume Down** for 3 seconds.
+   Stuck on the logo? Hold
+   **Power + Volume Down** to restart into One UI.
+
+If your root does not survive a restart, activate it again after you come back.
+
+**Tell us how it went** (from 0.4.29): after a session, open **Last session**
+and tap **Send to the OneOS team**. Say whether the system started and tick
+what worked and what had problems (Wi-Fi, calls, Bluetooth, camera and so on);
+a note and your Telegram name are optional. By default the app sends the short
+log (the first minutes after the switch and the last two before it ended); it
+sends the whole session's log when you tick a problem or turn it on. The logs
+are the same file **Share** sends, with personal data already removed, and the
+team keeps reports for 30 days. **Share** and **Save** are still there if
+sending does not work. What everyone reported is counted in
+[docs/compatibility.md](docs/compatibility.md): per OneOS version, phone and
+system, how many reports started and what worked (answers only: no names,
+notes or phone details).
+
+You can tick what works while you are still in the other system (from
+0.4.30): open the OneOS app there and tap **How's it going?**. Back in One UI,
+**Send to the OneOS team** has your answers filled in.
+
+**More than one system** (from 0.4.30): when you set up another system, the
+one you had stays on the phone as a copy, with its apps and data. Home lists
+each of them as **Switch to <system>**. One tap puts it back (the system set
+up now is kept the same way), updates OneOS's files in it if they are older
+than the app (about 2 minutes) and opens the switch. A copy you no longer
+need can be deleted there too, or in **Advanced › Free up space**.
+
+**Removing OneOS:** in OneOS open **Advanced › Remove OneOS data**. It deletes
+everything OneOS put on the phone: the system you set up (with the apps and
+accounts in it), older copies and the session logs. It checks first that
+nothing of a session is still connected to One UI, and refuses otherwise. One
+UI and its data are not touched, and downloaded system files stay where you
+saved them. Then uninstall the app as usual. Without the app, the same cleanup
+runs from a root shell such as Termux: `sh remove-oneos-data.sh` (from
+`scripts/`; it asks su for root, and `--dry-run` shows first what it would
+delete).
+
+## How it works
+
+1. On a build machine, an OEM firmware image is turned into a system image
+   (with MysticGSI, outside this repository), and `scripts/make-overlays.sh`
+   patches its framework (`switcher/patches/`) so it can run as a guest next to
+   One UI.
+2. The app checks the phone and the image (size and SHA-256 against its own
+   table), then, as root, stages the image and its patched files in
+   `/data/local/tmp/oneos`.
+3. `switcher/assets/oneos_switch.sh` stops One UI's zygote and system_server
+   (the kernel, vendor services and radio keep running) and `guest_prepare.sh`
+   / `guest_start.sh` start the guest's own framework in a mount namespace whose
+   `/system` is the image and whose `/data` is the stage.
+4. Guards keep the guest away from One UI's data and keys: its own vold,
+   storage and installd guards, no weaver or gatekeeper writes, no new users,
+   app ids of its own (`docs/app/patch-catalog.md`).
+5. `return_to_oneui.sh` stops the guest and gives the phone back to One UI, in
+   place when it can and by a reboot otherwise (`docs/inplace-return.md`).
+
+## Guest root and modules
+
+The pre-boot page and guest OneOS app can manage guest-specific root grants,
+modules and a selected Zygisk framework. See [setup and build instructions](docs/guest-runtime.md)
+and [root-provider compatibility limits](docs/guest-root-provider-compatibility.md).
+
+## Repository
+
+| Path | What it is |
+| --- | --- |
+| `app-android/` | The OneOS app and OneOS Probe (Kotlin, One UI look through SESL), the in-guest Back to One UI app, and their tests |
+| `switcher/assets/` | The session scripts the app ships: switch, prepare, start, return, bridges |
+| `switcher/patches/` | Framework patchers (Python and smali) applied by `make-overlays.sh`, and Samsung's installd interface table |
+| `switcher/overlays/`, `switcher/native/` | Runtime resource overlays, and the source of the guest zygote launcher (`zygote_exec`) |
+| `scripts/` | Build-machine tools: the overlay build, adb deploy for development, log collection |
+| `docs/` | Design notes, the patch catalog, and what each test session showed |
+
+## Building from source
+
+```sh
+git clone https://github.com/fahadalijaved/OneOS.git
+cd OneOS/app-android
+./gradlew assembleProbeDebug     # OneOS Probe: needs nothing outside this repository
+./gradlew test                   # unit tests (dash or busybox for the root script tests)
+```
+
+Requirements: JDK 21, the Android SDK with platform `android-37`
+(`ANDROID_HOME` or `sdk.dir` in `local.properties`), and internet access to
+Google Maven and Maven Central. Details: `app-android/README.md`.
+
+The full OneOS app (`assembleFullDebug`, `assembleFullRelease`) also packs the
+package sets: the files OneOS patches out of each built system image, from
+`../out/overlays*`. They are not in this repository. Building the guest images
+themselves is not part of this repository either (OneOS's images are built with
+MysticGSI, see Credits). What is here is how OneOS patches a built image:
+
+```sh
+APKTOOL=/path/to/apktool.jar EXTRACT_EROFS=/path/to/extract.erofs \
+    scripts/make-overlays.sh <system.img> out/overlays   # the set for that image
+```
+
+The build fails unless every file matches `app-android/packages/<set>.sha256`
+exactly, so the sets must come from the same firmware builds. Release builds
+are signed with a key from `~/.oneos-release/keystore.properties`
+(`storeFile`, `storePassword`, `keyAlias`, `keyPassword`); without it the
+release packaging stops. Debug builds use your machine's debug key.
+
+## Where the images come from
+
+This repository does not host system images, OEM firmware or the patched
+framework files built from them, and GitHub releases never carry them. They
+contain Samsung's, Google's or OPPO's code. The guest images are built from
+the vendor's own firmware outside this repository, and the app accepts only
+the builds whose size and SHA-256 it knows
+(`app-android/core/model/src/main/kotlin/com/fahadali/oneos/core/model/Images.kt`).
+The `firmware/` and `out/` folders are ignored by git for that reason.
+
+## License
+
+OneOS is licensed under the [Apache License 2.0](LICENSE). Parts of this
+repository come from other projects and keep their own terms: the
+OneLineage-derived session scripts (published with WeWaffles' permission). See
+[NOTICE](NOTICE) and [CREDITS.md](CREDITS.md).
+
+## Credits
+
+- **[OneLineage](https://github.com/WeWaffles/OneLineage)** by **WeWaffles**:
+  the container hot-switch OneOS is built on. OneOS's session scripts started
+  from OneLineage's, and WeWaffles gave permission to publish this work on top
+  of it, with credit here and in the app.
+- **[MysticGSI](https://github.com/MysticGSI/mysticgsi)** (The MysticGSI
+  Authors, Apache-2.0): builds the guest images OneOS runs (not part of this
+  repository). MysticGSI includes TrebleDroid work by Pierre-Hugues Husson
+  (phh) and contributors.
+- **[Project Infinity-X](https://github.com/ProjectInfinity-X)** and its Find X9
+  Ultra build ([X9UInfinityX](https://github.com/X9UInfinityX)): the Infinity-X
+  system OneOS runs from 0.4.27, unchanged, with OneOS's own framework patches.
+- **[OneUIProject](https://github.com/OneUIProject)**: SESL, oneui-design and
+  oneui-icons (MIT) give the app its One UI look.
+- **[Josh Skinner (@thatjoshguy67)](https://github.com/thatjoshguy67)**: Galaxy
+  Z Fold8 support ([pull request #1](https://github.com/fahadalijaved/OneOS/pull/1)):
+  the Fold8's Find N6 ColorOS set, its cover display, Quick Settings, AOD, widgets,
+  Pocket Studio and Google fixes, and Samsung's hinge sensor for half-folded
+  postures and the open/close animations in ColorOS and Pixel, which the Z Fold8
+  Ultra uses too.
+- smali/dexlib2, AndroidX, Kotlin, Guava, ZXing and others: the full list with
+  licenses is in [CREDITS.md](CREDITS.md).
+
+Not affiliated with Samsung, Google, OPPO, OnePlus or Project Infinity-X. Galaxy and One UI are
+trademarks of Samsung Electronics; Android and Pixel of Google LLC; ColorOS of
+OPPO.
+
+## Contributor patch channels
+
+Device-scoped experimental patch sources can be registered alongside the stable
+OneOS patches. See the [patch authoring and publishing guide](docs/fold8-patch-channels.md)
+for supported file schemas, source registration, build examples, testing and rollback.

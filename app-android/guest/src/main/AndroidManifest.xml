@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Return/restart requests stay in private app data; the host session watcher
+         reads them. The integrated root manager also reads guest app metadata
+         and downloads module updates. -->
+    <!-- Root access management must enumerate installed guest apps, including apps with no launcher. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <application
+        android:enableOnBackInvokedCallback="true"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.OneOSGuest">
+
+        <!-- singleTop: the tile brings an open screen forward and asks there. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".ModuleWebActivity" android:exported="false" />
+        <activity android:name=".GuestModulesActivity" android:exported="false" />
+        <activity android:name=".GuestRootActivity" android:exported="false" android:windowSoftInputMode="adjustResize">
+            <intent-filter><action android:name="android.intent.action.SEARCH" /></intent-filter>
+            <meta-data android:name="android.app.searchable" android:resource="@xml/root_searchable" />
+        </activity>
+        <activity android:name=".ReturnSplashActivity" android:exported="false" android:launchMode="singleTop" />
+
+        <!-- How's it going? (0.4.30): the checklist, saved in this app's own folder. -->
+        <activity
+            android:name=".ChecklistActivity"
+            android:exported="false"
+            android:label="@string/checklist_title" />
+
+        <!-- Quick Settings tile. Only SystemUI (BIND_QUICK_SETTINGS_TILE) binds it;
+             a tap opens the confirmation above. -->
+        <service
+            android:name=".ReturnTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_tile"
+            android:label="@string/tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

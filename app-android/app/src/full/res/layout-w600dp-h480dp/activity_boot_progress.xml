@@ -1,0 +1,19 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:id="@+id/boot_window" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@color/oneos_page_background">
+    <androidx.appcompat.widget.Toolbar android:id="@+id/boot_toolbar" android:layout_width="match_parent" android:layout_height="?attr/actionBarSize" />
+    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:paddingHorizontal="32dp" android:paddingTop="8dp" android:paddingBottom="12dp" android:orientation="horizontal" android:baselineAligned="false">
+        <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:background="@drawable/catalog_card_clip" android:clipToOutline="true"><com.fahadali.oneos.ui.OsArtworkView android:tag="heading" android:id="@+id/boot_artwork" android:layout_width="match_parent" android:layout_height="match_parent" /></FrameLayout>
+        <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginStart="32dp"><LinearLayout android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:gravity="center_horizontal">
+    <Space android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+    <androidx.appcompat.widget.AppCompatTextView android:id="@+id/boot_title" style="@style/OneOS.Setup.Title" android:layout_width="match_parent" android:layout_height="wrap_content" />
+    <Space android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+    <androidx.appcompat.widget.SeslProgressBar android:id="@+id/boot_spinner" android:layout_width="64dp" android:layout_height="64dp" android:indeterminate="true" />
+    <androidx.appcompat.widget.AppCompatTextView android:id="@+id/boot_status" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:textSize="20sp" android:textStyle="bold" android:layout_marginTop="32dp" android:text="@string/splash_shutdown" />
+    <!-- 0.4.79: the brought apps (LaunchJob.State.apps): how many come along, how many are there already. -->
+    <androidx.appcompat.widget.AppCompatTextView android:id="@+id/boot_apps" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:layout_marginTop="10dp" android:layout_marginStart="24dp" android:layout_marginEnd="24dp" android:textAppearance="@style/OneOS.Text.Body" android:visibility="gone" />
+    <!-- 0.4.43 (UX audit): how to come back, before One UI closes. -->
+    <androidx.appcompat.widget.AppCompatTextView android:id="@+id/boot_back" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:layout_marginTop="12dp" android:layout_marginStart="24dp" android:layout_marginEnd="24dp" android:textAppearance="@style/OneOS.Text.Caption" />
+    <Space android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1.6" />
+    <androidx.appcompat.widget.AppCompatButton android:id="@+id/boot_cancel" style="@style/OneUI.ContainedButton" android:theme="@style/OneUI.ContainedButtonTheme" android:layout_width="wrap_content" android:layout_height="wrap_content" android:minWidth="176dp" android:layout_marginBottom="12dp" android:text="@android:string/cancel" />
+</LinearLayout></FrameLayout>
+    </LinearLayout>
+</LinearLayout>
